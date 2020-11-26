@@ -3,10 +3,12 @@
 
 
 #include "KMeans.h"
+#include <algorithm>
+#include "../utils/utils.h"
 
 class KMeans_Par : public KMeans {
 public:
-    KMeans_Par(int nClusters, int maxIter);
+    KMeans_Par(int nClusters, int maxIter, uint seed);
 
     const KMeans *fit(const matrix &points) override;
 };
