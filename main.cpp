@@ -5,39 +5,47 @@
 #include <sstream>
 #include <iterator>
 #include "cluster/KMeans.h"
-#include "cluster/KMeans_Seq.h"
-#include "cluster/KMeans_Par.h"
+#include "benchmark/Benchmark.h"
+
+#define N_MANDATORY_ARGS 2
 
 int main(int argc, char **argv) {
-    if (argc < 2 or argc > 5) {
-        std::cerr << "Invalid arguments number" << std::endl;
-        std::cout << "Usage: PC_cpp_k_means_clustering \"path/to/dataset\" "
-                     "[0 or 1: 0 sequential, 1 parallel] "
-                     "[nClusters] "
-                     "[maxIter]" << std::endl;
-        return 1;
-    }
-
     // read args
-    int isParallel = true, nClusters = 10, maxIter = 300;
-    int* args[] = {&isParallel, &nClusters, &maxIter};
+    int bmarkType = 0, nClusters = 10, maxIter = 300;
+    int* args[] = {&bmarkType, &nClusters, &maxIter};
     std::size_t pos;
     std::string arg;
     try {
-        for (int i=2; i<argc; i++) {
-            arg = argv[i];
-            *(args[i-2]) = std::stoi(arg, &pos);
-            if (*(args[i-2]) <= 0 && i-2 > 0) {
-                std::cerr << "argument in position " << i-1 << " must be greater than 0" << std::endl;
-                return 1;
+        if (argc < 3 or argc > 6) {
+            throw std::invalid_argument("Invalid arguments number");
+        }
+        for (int i=0; i<argc-N_MANDATORY_ARGS-1; i++) {
+            arg = argv[i+N_MANDATORY_ARGS+1];
+            int argi = std::stoi(arg, &pos);
+            if (i == 0) {
+                if (argi > 2) argi = 2;
+                if (argi < 0) argi = 0;
+            }
+            if (argi <= 0 && i > 0) {
+                throw std::invalid_argument("argument in position " +
+                std::to_string(i+N_MANDATORY_ARGS+1) +
+                " must be greater than 0");
             }
             if (pos < arg.size()) {
-                std::cerr << "Trailing characters after number: " << arg << std::endl;
-                return 1;
+                throw std::invalid_argument("Trailing characters after number: "+arg);
             }
+            *(args[i]) = argi;
         }
     } catch (std::invalid_argument const &ex) {
-        std::cerr << "Invalid number: " << arg << std::endl;
+        std::cerr << ex.what() << std::endl;
+        std::cout << "Usage: PC_cpp_k_means_clustering \"path/to/dataset\" "
+                     "\"path/to/output/folder\" "
+                     "[0, 1 or 2: 0 sequential, 1 parallel, 2 versus] "
+                     "[nClusters > 0] "
+                     "[maxIter > 0]" << std::endl;
+        std::cout << "\"path/to/output/folder\" must exist. "
+                     "Typing the empty string \"\" will not save the results."
+                     << std::endl;
         return 1;
     } catch (std::out_of_range const &ex) {
         std::cerr << "Number out of range: " << arg << std::endl;
@@ -66,21 +74,20 @@ int main(int argc, char **argv) {
     }
     infile.close();
 
-    KMeans* kmeans;
-    if (isParallel)
-        kmeans = new KMeans_Par(nClusters, maxIter);
-    else
-        kmeans = new KMeans_Seq(nClusters, maxIter);
 
-    kmeans->fit(dataset);
-    kmeans->toFile("../data/kmeans");
+    /*************************** BENCHMARK ***************************/
 
-    std::cout << "Completed after "
-    << kmeans->getNIter()
-    << " iterations"
-    << std::endl;
+    Benchmark::benchmark(static_cast<BTYPE>(bmarkType), dataset, nClusters, maxIter);
 
-    delete kmeans;
+    // save results to file if path provided
+    std::string savepath(argv[2]);
+    if (!savepath.empty()) {
+        auto tester = Benchmark::getTester();
+        if (tester != nullptr)
+            (*tester)->toFile(savepath + "/kmeans");
+    }
+
+    Benchmark::clearTesters();
 
     return 0;
 }
