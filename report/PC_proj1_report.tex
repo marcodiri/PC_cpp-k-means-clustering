@@ -1,0 +1,136 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{cvpr}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage[noabbrev,capitalize]{cleveref}
+\usepackage{listings}
+\lstset{language=C++}
+
+
+\usepackage{url}
+
+% Include other packages here, before hyperref.
+
+% If you comment hyperref and then uncomment it, you should delete
+% egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
+% run, let it finish, and you should be clear).
+%\usepackage[pagebackref=true,breaklinks=true,letterpaper=true,colorlinks,bookmarks=false]{hyperref}
+
+\cvprfinalcopy % *** Uncomment this line for the final submission
+
+\def\cvprPaperID{****} % *** Enter the CVPR Paper ID here
+\def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
+
+% Pages are numbered in submission mode, and unnumbered in camera-ready
+\ifcvprfinal\pagestyle{empty}\fi
+\begin{document}
+
+%%%%%%%%% TITLE
+\title{Project 1: K-Means Clustering}
+
+\author{Marco Di Rienzo\\
+{\tt\small marco.dirienzo@stud.unifi.it}
+% For a paper whose authors are all at the same institution,
+% omit the following lines up until the closing ``}''.
+% Additional authors and addresses can be added with ``\and'',
+% just like the second author.
+% To save space, use either the email address or home page, not both
+}
+
+\maketitle
+\thispagestyle{empty}
+
+%%%%%%%%% ABSTRACT
+\begin{abstract}
+	The goal of this paper is to parallelize the K-Means Clustering algorithm and analyze the performance gain with respect to the sequential version.\\
+	In particular to create the parallel version, the OpenMP framework has been used, and the performance gain has been measured in terms of $\text{speed-up}=\frac{\text{sequential time}}{\text{parallel time}}$.
+\end{abstract}
+
+%%%%%%%%% BODY TEXT
+\section{Introduction}
+Both the sequential and the parallel version of the algorithm have been implemented in C++, the parallel one using the OpenMP framework.\\
+The dataset used to perform the tests is the \textit{digits dataset} of \textit{sklearn} (PCA-reduced to 2 dimensions).\\
+Since the algorithm involves an initial random choice between the dataset points, a fixed seed has been imposed to both versions to yield comparable results.
+
+\section{Pseudocode}
+The implemented algorithm has the following pseudocode:
+\begin{algorithm}
+	\SetAlgoLined
+	\KwData{$k$, $max\_iterations$, $observations$}
+	\KwResult{$centroids$, $labels$}
+	1. Select $k$ random $observations$ as starting $centroids$\;
+	\While{not converged* or not $max\_iterations$}{
+		\ForEach{$observation$}{
+			2. Compute the distance between each $centroid$ and $observation$\;
+			3. Assign $observation$ to closest $centroid$\;
+		}
+		4. Compute new $centroids$ (mean of $observations$ in a cluster)\;
+	}
+	\caption{K-Means Clustering}
+	\label{pseudocode}
+\end{algorithm}\\
+* convergence is reached when the new centroids are \textit{close enough} to the previous ones.
+
+\section{Algorithm nature} \label{nature}
+The algorithm lends itself very well to parallelization because the main loop (steps 2. and 3. of \cref{pseudocode}) is embarrassingly parallel, i.e. every iteration is independent from one another. What this means is that observations (points of the dataset) can simply be distributed among any number of threads while not having to worry about communication whatsoever.
+
+\section{Languages and frameworks}
+The codebase of the project has been written in C++. Python has been used to analyze the results.\\
+The parallel version has been created using the framework OpenMP, which allows the code to remain pretty much the same while distributing the workload among threads, instructed by the use of directives. This framework is ideal in this case because the only section to parallelize is the \textit{foreach} of \cref{pseudocode} which as said in \cref{nature} is embarrassingly parallel, and it can be done with a single directive (and some ad-hoc reduction functions).
+
+\section{Sequential implementation} \label{seq_imp}
+The sequential implementation is basically a C++ translation of the pseudocode in \cref{pseudocode}, with the nuance that step 4. is partially executed in the for loop, in particular the sum required to compute the mean is updated as soon as a point is assigned to a centroid. This avoids having to loop again on every observation, and is also perfectly compatible with the later parallelization.
+
+\section{Parallel implementation}
+Parallelizing step 1. makes no sense since $k$ is usually small and there's practically no computation required to choose random points from the given ones.\\
+The best we can do with step 4. is making each thread update a partial sum as soon as a point is assigned to a centroid, which is what we already explained in \cref{seq_imp}; the actual mean computation is not a parallelizable problem.\\
+The embarrassingly parallel section of the algorithm is the for loop, so OpenMP makes this really easy. Indeed, the directive \textbf{\#pragma omp parallel for} allows splitting observation indices among threads, so that each one will be assigned a different subset of the dataset.\\
+Since the assignments of observations to clusters are independent from one another, no synchronization is required.\\
+However, since a partial sum of points in a cluster is maintained in each thread, a final reduction is needed to extract the total sum and be able to compute the mean; this is accomplished with the directive \textbf{\#pragma omp declare reduction(...)} which allows to specify a reduction function to conglomerate the data of each thread.\\
+Custom reduction functions have been created to deal with the structures used in the program.
+
+\section{Tests}
+\begin{table*}[]
+	\centering
+	\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|}
+		\hline
+		N. of Threads        & 1    & 2    & 3    & 4    & 5    & 6    & 7    & 8    & 9    & 10   \\ \hline
+		Time Sequential ($\mu s$) & 3189 &      &      &      &      &      &      &      &      &      \\ \hline
+		Time Parallel ($\mu s$)   & 3060 & 1757 & 1239 & 1056 & 2117 & 2104 & 2303 & 2327 & 2438 & 2498 \\ \hline
+		Speed-up             & 1.04 & 1.82 & 2.57 & \textcolor{red}{3.02} & 1.51 & 1.52 & 1.38 & 1.37 & 1.31 & 1.28 \\ \hline
+	\end{tabular}\\
+	\bigskip
+	\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|}
+		\hline
+		N. of Threads        & 11   & 12   & 13   & 14   & 15   & 16   & 17   & 18   & 19   & 20   \\ \hline
+		Time Sequential ($\mu s$) &      &      &      &      &      &      &      &      &      &      \\ \hline
+		Time Parallel ($\mu s$)   & 2794 & 3014 & 3924 & 3380 & 3050 & 3234 & 3224 & 3274 & 3459 & 3996 \\ \hline
+		Speed-up             & 1.14 & 1.06 & 0.81 & 0.94 & 1.05 & 0.99 & 0.99 & 0.97 & 0.92 & 0.80 \\ \hline
+	\end{tabular}\\
+	\bigskip
+	\caption{Execution time (microseconds) and resulting speed-up of sequential vs parallel implementation, with number of threads from 1 to 20.}
+	\label{table:speedup}
+\end{table*}
+\begin{figure*}
+	\begin{center}
+		\includegraphics[width=\textwidth]{img/speedup.png}
+	\end{center}
+	\caption{Plot of speed-up values against number of threads displayed in \cref{table:speedup}.}
+	\label{fig:speedup}
+\end{figure*}
+
+Every test has been carried out on a CPU Intel Core i5-4670 (4-core).\\
+The dataset used to perform the tests is the \textit{digits dataset} of \textit{sklearn} (PCA-reduced to 2 dimensions), which is composed of 1797 elements.\\
+The purpose of these tests was the measurement of the speed-up of the parallel implementation against the sequential one of the algorithm.\\
+Wall-clock time was measured by C++ standard functions of the \texttt{<chrono>} library.\\
+The parallel program was run with varying number of threads with the purpose to find the optimum value. Each time the parallel and sequential version were given the same seed to make the initial random choice of centroids consistent between executions.\\
+Time results and resulting speed-up of the trials are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
+This is especially true in our case since each thread doesn't need to wait for any resources and thus there's no advantage in having more threads in the queue.\\
+In fact, with 5 threads and beyond the speed-up abruptly drops by half, to less than the speed-up with only 2 threads! It keeps falling until below sequential performance somewhere above 10 threads.
+
+\end{document}
