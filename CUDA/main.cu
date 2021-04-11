@@ -4,8 +4,11 @@
 #include <string>
 #include <sstream>
 #include <iterator>
-#include "cluster/KMeans.h"
-#include "benchmark/Benchmark.h"
+#include "KMeans.h"
+#include "Benchmark.h"
+
+
+#include "KMeans_CUDA.cuh"
 
 #define N_MANDATORY_ARGS 2
 
@@ -28,8 +31,8 @@ int main(int argc, char **argv) {
             }
             if (argi <= 0 && i > 0) {
                 throw std::invalid_argument("argument in position " +
-                std::to_string(i+N_MANDATORY_ARGS+1) +
-                " must be greater than 0");
+                                            std::to_string(i+N_MANDATORY_ARGS+1) +
+                                            " must be greater than 0");
             }
             if (pos < arg.size()) {
                 throw std::invalid_argument("Trailing characters after number: "+arg);
@@ -45,7 +48,7 @@ int main(int argc, char **argv) {
                      "[maxIter > 0]" << std::endl;
         std::cout << "\"path/to/output/folder\" must exist. "
                      "Typing the empty string \"\" will not save the results."
-                     << std::endl;
+                  << std::endl;
         return 1;
     } catch (std::out_of_range const &ex) {
         std::cerr << "Number out of range: " << arg << std::endl;
@@ -64,30 +67,24 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    matrix dataset;
-    std::string temp;
-    while (std::getline(infile, temp)) {
-        std::istringstream buffer(temp);
-        std::vector<double> line{std::istream_iterator<double>(buffer),
-                                 std::istream_iterator<double>()};
-        dataset.push_back(line);
+    matrix dataset{2};
+    {
+        std::string temp;
+        while (std::getline(infile, temp)) {
+            std::istringstream buffer(temp);
+            std::vector<el_type> line{std::istream_iterator<el_type>(buffer),
+                                    std::istream_iterator<el_type>()};
+            dataset[0].push_back(line[0]);
+            dataset[1].push_back(line[1]);
+        }
+        infile.close();
     }
-    infile.close();
 
 
     /*************************** BENCHMARK ***************************/
 
-    Benchmark::benchmark(static_cast<BTYPE>(bmarkType), dataset, nClusters, maxIter);
-
-    // save results to file if path provided
-    std::string savepath(argv[2]);
-    if (!savepath.empty()) {
-        auto tester = Benchmark::getTester();
-        if (tester != nullptr)
-            (*tester)->toFile(savepath + "/kmeans");
-    }
-
-    Benchmark::clearTesters();
+    KMeans_CUDA km(nClusters,maxIter,42);
+    km.fit(dataset);
 
     return 0;
 }

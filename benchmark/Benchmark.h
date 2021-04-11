@@ -1,9 +1,9 @@
 #ifndef PC_CPP_K_MEANS_CLUSTERING_BENCHMARK_H
 #define PC_CPP_K_MEANS_CLUSTERING_BENCHMARK_H
 
-#include "../cluster/KMeans.h"
-#include "../cluster/KMeans_Seq.h"
-#include "../cluster/KMeans_Par.h"
+#include "KMeans.h"
+#include "KMeans_Seq.h"
+#include "../OpenMP/KMeans_OMP.h"
 #include <iostream>
 #include <memory>
 #include <chrono>

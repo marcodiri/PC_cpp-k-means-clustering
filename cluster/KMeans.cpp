@@ -53,9 +53,10 @@ bool KMeans::toFile(const std::string& filename) const {
     }
     outFile << std::scientific
     << std::setprecision(std::numeric_limits<double>::digits10 + 2);
-    for (const auto &c : getClusterCenters()) {
-        for (const auto &cc : c)
-            outFile << cc << " ";
+    const auto centroids = getClusterCenters();
+    for (int c_i=0; c_i < getNClusters(); ++c_i) {
+        for (const auto & centroid : centroids)
+            outFile << centroid[c_i] << " ";
         outFile << std::endl;
     }
     outFile.close();

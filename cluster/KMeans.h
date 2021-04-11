@@ -10,7 +10,11 @@
 #include <limits>
 #include <random>
 
-using matrix = std::vector<std::vector<double>>;
+// using float instead of double because my GPU has compute capability 3.0
+// so atomicAdd(double,double) is not available (yes, we could implement it
+// manually but not being hardware supported it terribly slows down the kernel)
+using el_type = float;
+using matrix = std::vector<std::vector<el_type>>;
 
 class KMeans {
 /**

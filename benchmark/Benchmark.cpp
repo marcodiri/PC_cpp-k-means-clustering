@@ -26,12 +26,12 @@ void Benchmark::benchmark(const BTYPE &t, const matrix &dataset, const int &nClu
             break;
         }
         case BTYPE::PARALLEL: {
-            benchmarks.emplace_back(new Benchmark(new KMeans_Par(nCluster, maxIter, seed)));
+            benchmarks.emplace_back(new Benchmark(new KMeans_OMP(nCluster, maxIter, seed)));
             break;
         }
         default: {
             benchmarks.emplace_back(new Benchmark(new KMeans_Seq(nCluster, maxIter, seed)));
-            benchmarks.emplace_back(new Benchmark(new KMeans_Par(nCluster, maxIter, seed)));
+            benchmarks.emplace_back(new Benchmark(new KMeans_OMP(nCluster, maxIter, seed)));
         }
     }
     for (int i=0; i<benchmarks.size(); i++) {

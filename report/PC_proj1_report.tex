@@ -84,7 +84,11 @@ The codebase of the project has been written in C++. Python has been used to ana
 The parallel version has been created using the framework OpenMP, which allows the code to remain pretty much the same while distributing the workload among threads, instructed by the use of directives. This framework is ideal in this case because the only section to parallelize is the \textit{foreach} of \cref{pseudocode} which as said in \cref{nature} is embarrassingly parallel, and it can be done with a single directive (and some ad-hoc reduction functions).
 
 \section{Sequential implementation} \label{seq_imp}
-The sequential implementation is basically a C++ translation of the pseudocode in \cref{pseudocode}, with the nuance that step 4. is partially executed in the for loop, in particular the sum required to compute the mean is updated as soon as a point is assigned to a centroid. This avoids having to loop again on every observation, and is also perfectly compatible with the later parallelization.
+The sequential implementation is basically a C++ translation of the pseudocode in \cref{pseudocode}, with some nuances: 
+\begin{enumerate}
+	\item Observations and centroids are organized as Array of Structures to improve the alignment with cache lines and benefit of the memory bursts when accessing the various coordinates.
+	\item Step 4. is partially executed in the for loop, in particular the sum required to compute the mean is updated as soon as a point is assigned to a centroid. This avoids having to loop again on every observation, and is also perfectly compatible with the later parallelization.
+\end{enumerate}
 
 \section{Parallel implementation}
 Parallelizing step 1. makes no sense since $k$ is usually small and there's practically no computation required to choose random points from the given ones.\\
