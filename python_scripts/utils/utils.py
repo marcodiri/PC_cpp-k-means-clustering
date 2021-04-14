@@ -17,9 +17,16 @@ def save_data(data: np.ndarray, filename: str):
     if os.path.isfile(filepath):
         print(filepath+" already exists")
     else:
-        with open(filepath, 'w') as f:
-            np.savetxt(f, data)
-        print("created "+filepath)
+        if data.dtype == np.float64:
+            with open(filepath, 'w') as f:
+                np.savetxt(f, data.astype(float), fmt='%f')
+                print("created "+filepath)
+        elif data.dtype == np.int64:
+            with open(filepath, 'w') as f:
+                np.savetxt(f, data.astype(int), fmt='%i')
+                print("created "+filepath)
+        else:
+            print("format not supported")
 
 
 def load_data(filename: str, dtype=float):

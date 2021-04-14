@@ -6,7 +6,7 @@ from python_scripts.utils import load_data, DATA_PATH
 
 
 if __name__ == '__main__':
-    data = load_data("data.txt")
+    data = load_data("big_data.txt")
     centroids = load_data("kmeans_centroids.txt")
     labels = load_data("kmeans_labels.txt", int)
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
                 marker='x', s=60, linewidths=2,
                 color='r', zorder=10)
 
-    plt.title('K-means clustering on the digits dataset (PCA-reduced data)\n'
+    plt.title('K-means clustering\n'
               'Centroids are marked with red cross')
     plt.xlim(x_min, x_max)
     plt.ylim(y_min, y_max)
