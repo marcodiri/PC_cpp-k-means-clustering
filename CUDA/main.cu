@@ -1,14 +1,10 @@
 #include <iostream>
-#include <fstream>
 #include <stdexcept>
 #include <string>
-#include <sstream>
 #include <iterator>
-#include "KMeans.h"
-#include "Benchmark.h"
-
-
+#include "KMeans_Seq.h"
 #include "KMeans_CUDA.cuh"
+#include "Benchmark.h"
 
 #define N_MANDATORY_ARGS 2
 
@@ -55,6 +51,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+#ifdef DEBUG
+    uint seed = 42;
+#else
+    auto seed = bmarkType==2 ? 42 : std::random_device{}();
+#endif
+
     std::cout << "Called script with parameters: ";
     for (const auto *val : args)
         std::cout << *val << " ";
@@ -73,7 +75,7 @@ int main(int argc, char **argv) {
         while (std::getline(infile, temp)) {
             std::istringstream buffer(temp);
             std::vector<el_type> line{std::istream_iterator<el_type>(buffer),
-                                    std::istream_iterator<el_type>()};
+                                      std::istream_iterator<el_type>()};
             dataset[0].push_back(line[0]);
             dataset[1].push_back(line[1]);
         }
@@ -83,8 +85,40 @@ int main(int argc, char **argv) {
 
     /*************************** BENCHMARK ***************************/
 
-    KMeans_CUDA km(nClusters,maxIter,42);
-    km.fit(dataset);
+    // trigger the lazy creation of the CUDA context, otherwise the first
+    // cudaMalloc() will absorb the context creation cost which is not good
+    // for benchmark purposes
+    cudaFree(nullptr);
+
+    std::vector<KMeans *> testers;
+    switch (bmarkType) {
+        case 0:
+            testers.emplace_back(new KMeans_Seq(nClusters, maxIter, seed));
+            break;
+        case 1:
+            testers.emplace_back(new KMeans_CUDA(nClusters, maxIter, seed));
+            break;
+        case 2:
+        default:
+            testers.emplace_back(new KMeans_Seq(nClusters, maxIter, seed));
+            testers.emplace_back(new KMeans_CUDA(nClusters, maxIter, seed));
+            break;
+    }
+    Benchmark::setTester(testers);
+    Benchmark::benchmark(static_cast<BTYPE>(bmarkType), dataset);
+
+    // save results to file if path provided
+    std::string savepath(argv[2]);
+    if (!savepath.empty()) {
+        auto tester = Benchmark::getTester();
+        if (tester != nullptr)
+            tester->toFile(savepath + "/kmeans");
+    }
+
+    Benchmark::clearTesters();
+
+    for (auto t : testers)
+        delete t;
 
     return 0;
 }

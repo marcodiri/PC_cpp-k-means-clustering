@@ -51,6 +51,7 @@ reduction(vec_uint_plus : pointsPerCluster) reduction(matrix_plus : centroidsNew
             unsigned int centroid_i = 0; // index of the centroid closer to p
             for (size_t j=0; j < cluster_n; j++) {
                 // euclidean distance (norm2) between centroid and point
+                // sqrt is unnecessary since it's a monotone function
                 el_type d = 0;
                 for (size_t d_i=0; d_i < dimension_n; ++d_i) {
                     el_type sub = points[d_i][i] - centroids[d_i][j];

@@ -77,8 +77,6 @@ const KMeans *KMeans_CUDA::fit(const matrix &points) {
     }
 
     {
-        auto start = std::chrono::high_resolution_clock::now();
-
         unsigned int threadsPerBlock = 128;
         unsigned int blocks = std::ceil((float) points_n / threadsPerBlock);
 
@@ -123,19 +121,14 @@ const KMeans *KMeans_CUDA::fit(const matrix &points) {
             }
         }
 
-        auto stop = std::chrono::high_resolution_clock::now();
-        std::cout << "kernel time: "
-                  << std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count()
-                  << " us" << " iter: " << nIter << std::endl;
+        // copy labels back to host
+        unsigned int h_labels[points_n];
+        CUDA_CHECK_RETURN(cudaMemcpy(&h_labels, dev_labels, points_n * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+        clusterCenters = centroids;
+        this->labels.insert(this->labels.begin(), h_labels, h_labels+points_n);
+        this->nIter = nIter;
     }
-
-    // copy labels back to host
-    unsigned int h_labels[points_n];
-    CUDA_CHECK_RETURN(cudaMemcpy(&h_labels, dev_labels, points_n * sizeof(unsigned int), cudaMemcpyDeviceToHost));
-
-    clusterCenters = centroids;
-    this->labels.insert(this->labels.begin(), h_labels, h_labels+points_n);
-    this->nIter = nIter;
 
     // free memory
     CUDA_CHECK_RETURN(cudaFree(dev_points));
@@ -157,6 +150,7 @@ assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
             double min = -1; // minimum distance between p and a centroid
             for (size_t j = 0; j < cluster_n; j++) {
                 // euclidean distance (norm2) between centroid and point
+                // sqrt is unnecessary since it's a monotone function
                 el_type d = 0;
                 for (size_t d_i = 0; d_i < dimension_n; ++d_i) {
                     // d_i * points_n is the coordinate offset since array is flat

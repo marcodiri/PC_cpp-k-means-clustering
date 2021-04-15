@@ -31,7 +31,7 @@
 \begin{document}
 
 %%%%%%%%% TITLE
-\title{Project 1: K-Means Clustering}
+\title{Project 2: K-Means Clustering}
 
 \author{Marco Di Rienzo\\
 {\tt\small marco.dirienzo@stud.unifi.it}
@@ -48,13 +48,14 @@
 %%%%%%%%% ABSTRACT
 \begin{abstract}
 	The goal of this paper is to parallelize the K-Means Clustering algorithm and analyze the performance gain with respect to the sequential version.\\
-	In particular to create the parallel version, the OpenMP framework has been used, and the performance gain has been measured in terms of $\text{speed-up}=\frac{\text{sequential time}}{\text{parallel time}}$.
+	One parallel versions has been created using the OpenMP framework and another using CUDA to run on the GPU.\\
+	The performance gain is measured in terms of $\text{speed-up}=\frac{\text{sequential time}}{\text{parallel time}}$.
 \end{abstract}
 
 %%%%%%%%% BODY TEXT
 \section{Introduction}
-Both the sequential and the parallel version of the algorithm have been implemented in C++, the parallel one using the OpenMP framework.\\
-The dataset used to perform the tests is the \textit{digits dataset} of \textit{sklearn} (PCA-reduced to 2 dimensions).\\
+Both the sequential and the parallel version of the algorithm have been implemented in C++, the parallel ones using the OpenMP framework and CUDA C.\\
+The dataset used to perform the tests is composed of 100,000 points of 2 dimensions and has been generated with the \texttt{make\_blobs} function of \textit{sklearn}.\\
 Since the algorithm involves an initial random choice between the dataset points, a fixed seed has been imposed to both versions to yield comparable results.
 
 \section{Pseudocode}
@@ -81,7 +82,8 @@ The algorithm lends itself very well to parallelization because the main loop (s
 
 \section{Languages and frameworks}
 The codebase of the project has been written in C++. Python has been used to analyze the results.\\
-The parallel version has been created using the framework OpenMP, which allows the code to remain pretty much the same while distributing the workload among threads, instructed by the use of directives. This framework is ideal in this case because the only section to parallelize is the \textit{foreach} of \cref{pseudocode} which as said in \cref{nature} is embarrassingly parallel, and it can be done with a single directive (and some ad-hoc reduction functions).
+One parallel version has been created using the framework OpenMP, which allows the code to remain pretty much the same while distributing the workload among threads, instructed by the use of directives. This framework is ideal in this case because the only section to parallelize is the \textit{foreach} of \cref{pseudocode} which as said in \cref{nature} is embarrassingly parallel, and it can be done with a single directive (and some ad-hoc reduction functions).\\
+The other one was made with CUDA C, which allows even more parallelization since GPUs are capable of managing thousands of threads.
 
 \section{Sequential implementation} \label{seq_imp}
 The sequential implementation is basically a C++ translation of the pseudocode in \cref{pseudocode}, with some nuances: 
@@ -93,10 +95,13 @@ The sequential implementation is basically a C++ translation of the pseudocode i
 \section{Parallel implementation}
 Parallelizing step 1. makes no sense since $k$ is usually small and there's practically no computation required to choose random points from the given ones.\\
 The best we can do with step 4. is making each thread update a partial sum as soon as a point is assigned to a centroid, which is what we already explained in \cref{seq_imp}; the actual mean computation is not a parallelizable problem.\\
-The embarrassingly parallel section of the algorithm is the for loop, so OpenMP makes this really easy. Indeed, the directive \textbf{\#pragma omp parallel for} allows splitting observation indices among threads, so that each one will be assigned a different subset of the dataset.\\
+The embarrassingly parallel section of the algorithm is the for loop.
+\subsection{OpenMP}
+OpenMP makes this really easy. Indeed, the directive \textbf{\#pragma omp parallel for} allows splitting observation indices among threads, so that each one will be assigned a different subset of the dataset.\\
 Since the assignments of observations to clusters are independent from one another, no synchronization is required.\\
 However, since a partial sum of points in a cluster is maintained in each thread, a final reduction is needed to extract the total sum and be able to compute the mean; this is accomplished with the directive \textbf{\#pragma omp declare reduction(...)} which allows to specify a reduction function to conglomerate the data of each thread.\\
 Custom reduction functions have been created to deal with the structures used in the program.
+\subsection{CUDA}
 
 \section{Tests}
 \begin{table*}[]
@@ -128,12 +133,12 @@ Custom reduction functions have been created to deal with the structures used in
 	\label{fig:speedup}
 \end{figure*}
 
-Every test has been carried out on a CPU Intel Core i5-4670 (4-core).\\
-The dataset used to perform the tests is the \textit{digits dataset} of \textit{sklearn} (PCA-reduced to 2 dimensions), which is composed of 1797 elements.\\
-The purpose of these tests was the measurement of the speed-up of the parallel implementation against the sequential one of the algorithm.\\
+Every test has been carried out on a CPU Intel Core i5-4670 (4-core) and a GPU Nvidia GeForce GTX 770 (compute capability 3.0).\\
+The dataset used to perform the tests was generated with the \texttt{make\_blobs} function of \textit{sklearn} and is composed of 100,000 elements of 2 dimensions.\\
+The purpose of these tests was the measurement of the speed-up of the parallel implementations of the algorithm against the sequential one.\\
 Wall-clock time was measured by C++ standard functions of the \texttt{<chrono>} library.\\
 The parallel program was run with varying number of threads with the purpose to find the optimum value. Each time the parallel and sequential version were given the same seed to make the initial random choice of centroids consistent between executions.\\
-Time results and resulting speed-up of the trials are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
+Time results and resulting speed-up of the trials for OpenMP are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
 This is especially true in our case since each thread doesn't need to wait for any resources and thus there's no advantage in having more threads in the queue.\\
 In fact, with 5 threads and beyond the speed-up abruptly drops by half, to less than the speed-up with only 2 threads! It keeps falling until below sequential performance somewhere above 10 threads.
 
