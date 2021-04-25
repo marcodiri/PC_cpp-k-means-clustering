@@ -26,6 +26,4 @@ template<> struct vectPlus<void> {
     }
 };
 
-bool compare(const float &value1, const float &value2, const int& precision);
-
 #endif //PC_CPP_K_MEANS_CLUSTERING_UTILS_H

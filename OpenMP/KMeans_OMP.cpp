@@ -30,10 +30,8 @@ initializer(omp_priv = omp_orig)
 
     decltype(labels) labels(points_n);
     int nIter = 0;
-    bool centroidsChanged = true;
-    while (centroidsChanged && nIter < getMaxIter()) {
+    while (nIter < getMaxIter()) {
         ++nIter;
-        centroidsChanged = false;
         std::vector<unsigned int> pointsPerCluster(cluster_n);
         for (auto &p : pointsPerCluster) p = 0;
         matrix centroidsNew{dimension_n};
@@ -75,9 +73,6 @@ reduction(vec_uint_plus : pointsPerCluster) reduction(matrix_plus : centroidsNew
         for (size_t d_i=0; d_i<dimension_n; d_i++) {
             for (size_t i=0; i<cluster_n; i++) {
                 centroidsNew[d_i][i] /= pointsPerCluster[i];
-                // check whether the new centroids are the same as the old ones
-                if (!centroidsChanged && !compare(centroidsNew[d_i][i], centroids[d_i][i], 3))
-                    centroidsChanged = true;
             }
         }
         centroids = centroidsNew;

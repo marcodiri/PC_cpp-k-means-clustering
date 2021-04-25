@@ -3,7 +3,7 @@ project(OpenMP)
 set(SOURCE_FILES main.cpp KMeans_OMP.cpp KMeans_OMP.h
         ../cluster/KMeans.cpp ../cluster/KMeans.h
         ../cluster/KMeans_Seq.cpp ../cluster/KMeans_Seq.h
-        ../utils/utils.h ../utils/utils.cpp
+        ../utils/utils.h
         ../benchmark/Benchmark.cpp ../benchmark/Benchmark.h)
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 

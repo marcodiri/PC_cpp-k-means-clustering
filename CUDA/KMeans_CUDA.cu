@@ -82,48 +82,32 @@ const KMeans *KMeans_CUDA::fit(const matrix &points) {
 
         size_t cN_sz = dimension_n * cluster_n;
         size_t cN_sz_bytes = cN_sz * sizeof(el_type);
-        el_type h_centroidsNew[cN_sz];
         size_t pPC_sz_bytes = cluster_n * sizeof(unsigned int);
-        unsigned int h_pointsPerCluster[cluster_n];
         int maxIter = getMaxIter(), nIter = 0;
-        bool centroidsChanged = true;
-        while (centroidsChanged && nIter < maxIter) {
+        while (nIter < maxIter) {
             ++nIter;
-            centroidsChanged = false;
 
             assignPointsToCentroids<<<blocks, threadsPerBlock>>>(dimension_n, points_n, cluster_n);
             cudaDeviceSynchronize();
 
-            // copy d_centroidsNew and d_pointsPerCluster back to host
-            CUDA_CHECK_RETURN(cudaMemcpy(&h_centroidsNew, dev_centroidsNew, cN_sz_bytes, cudaMemcpyDeviceToHost));
-            CUDA_CHECK_RETURN(
-                    cudaMemcpy(&h_pointsPerCluster, dev_pointsPerCluster, pPC_sz_bytes, cudaMemcpyDeviceToHost));
+            calculateNewCentroids<<<1, cluster_n>>>(dimension_n, points_n, cluster_n);
+            cudaDeviceSynchronize();
 
-            // check whether the new centroids are the same as the old ones
-            for (size_t d_i = 0; d_i < dimension_n; d_i++) {
-                for (size_t i = 0; i < cluster_n; i++) {
-                    el_type &coord_new = h_centroidsNew[d_i * cluster_n + i];
-                    coord_new /= h_pointsPerCluster[i];
-                    if (!centroidsChanged && !compare(coord_new, centroids[d_i][i], 3)) {
-                        centroidsChanged = true;
-                    }
-                    // once the old coordinate has been checked, we can update it with the new one
-                    if (centroidsChanged) centroids[d_i][i] = coord_new;
-                }
-            }
-            // prepare for next iteration:
-            if (centroidsChanged) {
-                // update centroids on device;
-                CUDA_CHECK_RETURN(cudaMemcpy(dev_centroids, h_centroidsNew, cN_sz_bytes, cudaMemcpyHostToDevice));
-                // reset device centroidsNew and pointsPerCluster to 0
-                CUDA_CHECK_RETURN(cudaMemset(dev_centroidsNew, 0, cN_sz_bytes));
-                CUDA_CHECK_RETURN(cudaMemset(dev_pointsPerCluster, 0, pPC_sz_bytes));
-            }
+            CUDA_CHECK_RETURN(cudaMemset(dev_centroidsNew, 0, cN_sz_bytes));
+            CUDA_CHECK_RETURN(cudaMemset(dev_pointsPerCluster, 0, pPC_sz_bytes));
         }
 
-        // copy labels back to host
+        // copy data back to host
         unsigned int h_labels[points_n];
         CUDA_CHECK_RETURN(cudaMemcpy(&h_labels, dev_labels, points_n * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+        el_type h_centroids[dimension_n*cluster_n];
+        CUDA_CHECK_RETURN(cudaMemcpy(&h_centroids, dev_centroids, dimension_n*cluster_n * sizeof(el_type), cudaMemcpyDeviceToHost));
+        for (size_t d_i = 0; d_i < dimension_n; d_i++) {
+            for (size_t i = 0; i < cluster_n; i++) {
+                centroids[d_i][i] = h_centroids[d_i * cluster_n + i];
+            }
+        }
 
         clusterCenters = centroids;
         this->labels.insert(this->labels.begin(), h_labels, h_labels+points_n);
@@ -176,6 +160,17 @@ assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
         for (size_t d_i = 0; d_i < dimension_n; d_i++) {
             atomicAdd(&(d_centroidsNew[d_i * cluster_n + label]),
                             d_points[d_i * points_n + idx]);
+        }
+    }
+}
+
+__global__ void
+calculateNewCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    // calculate new centroids
+    if(idx < cluster_n){
+        for (size_t d_i=0; d_i<dimension_n; ++d_i) {
+            d_centroids[d_i * cluster_n + idx] = d_centroidsNew[d_i * cluster_n + idx] / d_pointsPerCluster[idx];
         }
     }
 }

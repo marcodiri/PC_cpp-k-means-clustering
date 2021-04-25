@@ -18,4 +18,7 @@ public:
 __global__ void
 assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n);
 
+__global__ void
+calculateNewCentroids(size_t dimension_n, size_t points_n, size_t cluster_n);
+
 #endif //PC_CPP_K_MEANS_CLUSTERING_KMEANS_CUDA_CUH
