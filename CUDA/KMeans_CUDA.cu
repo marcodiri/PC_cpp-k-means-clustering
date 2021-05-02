@@ -91,7 +91,7 @@ const KMeans *KMeans_CUDA::fit(const matrix &points) {
             ++nIter;
             centroidsChanged = false;
 
-            assignPointsToCentroids<<<blocks, threadsPerBlock>>>(dimension_n, points_n, cluster_n);
+            assignPointsToCentroids<<<blocks, threadsPerBlock, dimension_n*cluster_n*sizeof(el_type)>>>(dimension_n, points_n, cluster_n);
             cudaDeviceSynchronize();
 
             // copy d_centroidsNew and d_pointsPerCluster back to host
@@ -143,6 +143,16 @@ const KMeans *KMeans_CUDA::fit(const matrix &points) {
 __global__ void
 assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
     unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // load centroids in shared memory
+    extern __shared__ el_type s_centroids[];
+    for (int i = threadIdx.x; i < cluster_n; i += blockDim.x) {
+        for (int j = 0; j < dimension_n; j++) {
+            s_centroids[cluster_n * j + i] = d_centroids[cluster_n * j + i];
+        }
+    }
+    __syncthreads();
+
     if (idx < points_n) {
         // 2. compute the distance between centroids and observation
         unsigned int label = 0; // index of the centroid closer to p
@@ -154,7 +164,7 @@ assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
                 el_type d = 0;
                 for (size_t d_i = 0; d_i < dimension_n; ++d_i) {
                     // d_i * points_n is the coordinate offset since array is flat
-                    el_type sub = d_points[d_i * points_n + idx] - d_centroids[d_i * cluster_n + j];
+                    el_type sub = d_points[d_i * points_n + idx] - s_centroids[d_i * cluster_n + j];
                     d += sub * sub;
                 }
                 if (d < min || min == -1) {
@@ -172,7 +182,8 @@ assignPointsToCentroids(size_t dimension_n, size_t points_n, size_t cluster_n) {
 
         // 4. compute new centroids (mean of observations in a cluster)
         // atomically sum thread point at centroid index
-        // the actual mean will be done in the host
+        // the actual mean will be done in another kernel since we need to sync
+        // every thread of the grid to get final pointsPerCluster values
         for (size_t d_i = 0; d_i < dimension_n; d_i++) {
             atomicAdd(&(d_centroidsNew[d_i * cluster_n + label]),
                             d_points[d_i * points_n + idx]);
