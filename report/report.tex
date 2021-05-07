@@ -87,7 +87,7 @@ The other one was made with CUDA C, which allows even more parallelization since
 \section{Sequential implementation} \label{seq_imp}
 The sequential implementation is basically a C++ translation of the pseudocode in \cref{pseudocode}, with some nuances: 
 \begin{enumerate}
-	\item Observations and centroids are organized as Array of Structures to improve the alignment with cache lines and benefit of the memory bursts when accessing the various coordinates.
+	\item Observations and centroids are organized as Structure of Arrays to improve the alignment with cache lines and benefit of the memory bursts when accessing the various coordinates.
 	\item Step 4. is partially executed in the for loop, in particular the sum required to compute the mean is updated as soon as a point is assigned to a centroid. This avoids having to loop again on every observation, and is also perfectly compatible with the later parallelization.
 \end{enumerate}
 
@@ -118,11 +118,11 @@ Each time the parallel and sequential version were given the same seed to make t
 The parallel program was run with varying number of threads with the purpose to find the optimum value.\\
 Time results and resulting speed-up of the trials for OpenMP are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
 This is especially true in our case since each thread doesn't need to wait for any resources and thus there's no advantage in having more threads in the queue.\\
-In fact, with 5 threads and beyond the speed-up remains constant at about 2.5.
+In fact, with 5 threads and beyond the speed-up remains constant at about 2.4.
 \subsection{CUDA}
 According to the \textbf{CUDA Occupancy Calculator} the number of threads per block was set to 128; the corresponding number of blocks is $\lceil \frac{N_{points}}{128} \rceil$.\\
 Tests have been made with increasing dataset size to appreciate the scaling of the various parallelization methods.\\
-Results are shown in \cref{table:time_to_size}, and also graphically in \cref{fig:time_to_size}, it can be seen that the sequential implementation scales linearly to dataset size, while the parallel ones scale sub-linearly, with CUDA gaining more and more advantage as the size increases due to the maximum parallelization of a single point per thread.\\
+Results are shown in \cref{table:time_to_size}, and also graphically in \cref{fig:time_to_size}, it can be seen that the sequential and OpenMP implementations scale linearly to dataset size, while the CUDA one scales sub-linearly, with CUDA gaining more and more advantage as the size increases due to the maximum parallelization of a single point per thread.\\
 
 \begin{table*}[h]
 	\centering
