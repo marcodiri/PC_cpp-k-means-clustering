@@ -106,23 +106,25 @@ Observations and initial centroids are copied from the host to the device \textb
 Inside a thread, its point is compared with every centroid and the resulting label is written in the global memory array. The points per cluster and new centroids arrays are atomically increased, so no manual synchronization is required.\\
 After the kernel completes, every thread of the grid is synchronized so final values of sum of points in a cluster and the number of points per cluster are available.
 Another kernel is launched to compute the new centroids directly on the device, so to avoid copying arrays back to host at every iteration.\\
-Only when final centroids are computed, the centroids coordinates and point labels are retrieved from the device and saved.\\
+Only when final centroids are computed, the centroids coordinates and point labels are retrieved from the device and saved.
 
 \section{Tests}
 Every test has been carried out on a CPU Intel Core i5-4670 (4-core) and a GPU Nvidia GeForce GTX 770 (compute capability 3.0).\\
-The dataset used to perform the tests was generated with the \texttt{make\_blobs} function of \textit{sklearn} and is composed of 100,000 elements of 2 dimensions.\\
+The dataset used to perform the tests was generated with the \texttt{make\_blobs} function of \textit{sklearn} and is composed of 100,000 elements of 2 dimensions. The number of centroids is fixed to 10, if not stated otherwise.\\
 The purpose of these tests was the measurement of the speed-up of the parallel implementations of the algorithm against the sequential one.\\
 Wall-clock time was measured by C++ standard functions of the \texttt{<chrono>} library.\\
-Each time the parallel and sequential version were given the same seed to make the initial random choice of centroids consistent between executions.\\
+Each time the parallel and sequential version were given the same seed to make the initial random choice of centroids consistent between executions.
 \subsection{OpenMP}
 The parallel program was run with varying number of threads with the purpose to find the optimum value.\\
-Time results and resulting speed-up of the trials for OpenMP are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
+Time results and resulting speed-up of the trials for OpenMP are shown in \cref{table:speedup}, and also graphically in \cref{fig:speedup}, it can be seen that the speed-up grows sub-linearly (i.e. when the number of threads is quadrupled, the speed-up is not exactly multiplied by 4) to the best execution time, achieved with \textbf{4 threads}, that is the exact number of CPU cores. This is because with less threads obviously the amount of work per thread is greater and thus more time is required to complete.\\ With more threads, it's true that each one has less points to process, but since only 4 cores are available, only 4 threads can be executed simultaneously, and there's also the overhead of switching threads in and out of the processors.\\
 This is especially true in our case since each thread doesn't need to wait for any resources and thus there's no advantage in having more threads in the queue.\\
 In fact, with 5 threads and beyond the speed-up remains constant at about 2.4.
 \subsection{CUDA}
 According to the \textbf{CUDA Occupancy Calculator} the number of threads per block was set to 128; the corresponding number of blocks is $\lceil \frac{N_{points}}{128} \rceil$.\\
-Tests have been made with increasing dataset size to appreciate the scaling of the various parallelization methods.\\
+No variations in the speed-up were noticed by using different numbers of threads per block.\\
+The first test was done increasing the dataset size to appreciate the scaling of the various parallelization methods.\\
 Results are shown in \cref{table:time_to_size}, and also graphically in \cref{fig:time_to_size}, it can be seen that the sequential and OpenMP implementations scale linearly to dataset size, while the CUDA one scales sub-linearly, with CUDA gaining more and more advantage as the size increases due to the maximum parallelization of a single point per thread.\\
+Another test was done by increasing the number of centroids, since the loop on the centroids is executed inside the thread, the execution time grows linearly for every implementation, but the greater the parallelizzation, the greater the speed-up, which with CUDA rises up to about 30 from 100 centroids on. Results are shown in \cref{table:time_to_centroids}, and graphically in \cref{fig:time_to_centroids}.
 
 \begin{table*}[h]
 	\centering
@@ -167,6 +169,28 @@ Results are shown in \cref{table:time_to_size}, and also graphically in \cref{fi
 	\end{center}
 	\caption{Plot of execution time against dataset sizes displayed in \cref{table:time_to_size}.}
 	\label{fig:time_to_size}
+\end{figure*}
+
+\clearpage
+\begin{table*}[h]
+	\centering
+	\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|}
+		\hline
+		Centroids number   & 2    & 102    & 202    & 302    & 402    & 502   \\ \hline
+		Time Sequential (ms) & 117 & 3088 & 5514 & 7986 & 10351 & 12760  \\ \hline
+		Time OpenMP (ms)     & 37 & 929 & 1717 & 2441 & 3272 & 4016  \\ \hline
+		Time CUDA (ms)       & 44 & 106 & 206 & 323 & 404 & 501 \\ \hline
+	\end{tabular}\\
+	\bigskip
+	\caption{Execution time (milliseconds) of sequential vs OpenMP vs CUDA parallel implementation, with centroids number from 2 to 502.}
+	\label{table:time_to_centroids}
+\end{table*}
+\begin{figure*}[h]
+	\begin{center}
+		\includegraphics[width=0.8\textwidth]{img/time_to_centroids_n.png}
+	\end{center}
+	\caption{Plot of execution time against centroids number displayed in \cref{table:time_to_centroids}.}
+	\label{fig:time_to_centroids}
 \end{figure*}
 
 \end{document}
